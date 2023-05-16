@@ -1,7 +1,7 @@
 # Hash Hash Hash
 Aryan Janolkar, UID:805820938
 
-This lab xxx
+This lab was about utilizing mutexes to make concurrent additions to a hash table safe from race conditions while maintaining a n-1 times faster performance than sequential processing, where n is the number of threads.
 
 ## Building
 ```shell
