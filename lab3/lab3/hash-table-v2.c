@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
-
+#include <errno.h>
 #include <pthread.h>
 
 struct list_entry {
@@ -13,10 +13,13 @@ struct list_entry {
 	SLIST_ENTRY(list_entry) pointers;
 };
 
+
 SLIST_HEAD(list_head, list_entry);
 
 struct hash_table_entry {
 	struct list_head list_head;
+	//Updated Code
+	pthread_mutex_t create_mutex;
 };
 
 struct hash_table_v2 {
@@ -48,9 +51,7 @@ static struct list_entry *get_list_entry(struct hash_table_v2 *hash_table,
                                          struct list_head *list_head)
 {
 	assert(key != NULL);
-
 	struct list_entry *entry = NULL;
-	
 	SLIST_FOREACH(entry, list_head, pointers) {
 	  if (strcmp(entry->key, key) == 0) {
 	    return entry;
@@ -71,22 +72,28 @@ bool hash_table_v2_contains(struct hash_table_v2 *hash_table,
 void hash_table_v2_add_entry(struct hash_table_v2 *hash_table,
                              const char *key,
                              uint32_t value)
-{
-	
+{	
 	struct hash_table_entry *hash_table_entry = get_hash_table_entry(hash_table, key);
 	struct list_head *list_head = &hash_table_entry->list_head;
 	struct list_entry *list_entry = get_list_entry(hash_table, key, list_head);
-
+	if(pthread_mutex_lock(&hash_table_entry->create_mutex)){
+		exit(errno);
+	}
 	/* Update the value if it already exists */
 	if (list_entry != NULL) {
 		list_entry->value = value;
+		if(pthread_mutex_unlock(&hash_table_entry->create_mutex)){
+			exit(errno);
+		}
 		return;
 	}
-
 	list_entry = calloc(1, sizeof(struct list_entry));
 	list_entry->key = key;
 	list_entry->value = value;
 	SLIST_INSERT_HEAD(list_head, list_entry, pointers);
+	if(pthread_mutex_unlock(&hash_table_entry->create_mutex)){
+		exit(errno);
+	}
 }
 
 uint32_t hash_table_v2_get_value(struct hash_table_v2 *hash_table,
@@ -108,6 +115,7 @@ void hash_table_v2_destroy(struct hash_table_v2 *hash_table)
 		while (!SLIST_EMPTY(list_head)) {
 			list_entry = SLIST_FIRST(list_head);
 			SLIST_REMOVE_HEAD(list_head, pointers);
+			pthread_mutex_destroy(&entry->create_mutex);
 			free(list_entry);
 		}
 	}

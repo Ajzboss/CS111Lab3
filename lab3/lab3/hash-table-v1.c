@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
-
+#include <errno.h>
 #include <pthread.h>
 
 struct list_entry {
@@ -32,6 +32,7 @@ struct hash_table_v1 *hash_table_v1_create()
 		struct hash_table_entry *entry = &hash_table->entries[i];
 		SLIST_INIT(&entry->list_head);
 	}
+	pthread_mutex_init(&mutex, NULL);
 	return hash_table;
 }
 
@@ -73,7 +74,9 @@ void hash_table_v1_add_entry(struct hash_table_v1 *hash_table,
                              const char *key,
                              uint32_t value)
 {
-	pthread_mutex_lock(&mutex);
+	if(pthread_mutex_lock(&mutex)){
+		exit(errno);
+	}
 	struct hash_table_entry *hash_table_entry = get_hash_table_entry(hash_table, key);
 	struct list_head *list_head = &hash_table_entry->list_head;
 	struct list_entry *list_entry = get_list_entry(hash_table, key, list_head);
@@ -81,7 +84,9 @@ void hash_table_v1_add_entry(struct hash_table_v1 *hash_table,
 	/* Update the value if it already exists */
 	if (list_entry != NULL) {
 		list_entry->value = value;
-		pthread_mutex_unlock(&mutex);
+		if(pthread_mutex_unlock(&mutex)){
+			exit(errno);
+		}
 		return;
 	}
 
@@ -89,7 +94,9 @@ void hash_table_v1_add_entry(struct hash_table_v1 *hash_table,
 	list_entry->key = key;
 	list_entry->value = value;
 	SLIST_INSERT_HEAD(list_head, list_entry, pointers);
-	pthread_mutex_unlock(&mutex);
+	if(pthread_mutex_unlock(&mutex)){
+		exit(errno);
+	}
 }
 
 uint32_t hash_table_v1_get_value(struct hash_table_v1 *hash_table,
@@ -113,6 +120,8 @@ void hash_table_v1_destroy(struct hash_table_v1 *hash_table)
 			SLIST_REMOVE_HEAD(list_head, pointers);
 			free(list_entry);
 		}
+		pthread_mutex_destroy(&mutex);
+
 	}
 	free(hash_table);
 }
